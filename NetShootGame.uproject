@@ -1,0 +1,16 @@
+{
+	"FileVersion": 3,
+	"EngineAssociation": "{462E7E2F-4504-0B89-1F88-8BA96816089A}",
+	"Category": "",
+	"Description": "",
+	"Modules": [
+		{
+			"Name": "NetShootGame",
+			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine"
+			]
+		}
+	]
+}
