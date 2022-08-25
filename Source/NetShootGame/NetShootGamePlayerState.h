@@ -19,9 +19,25 @@ class NETSHOOTGAME_API ANetShootGamePlayerState : public APlayerState
 {
 	GENERATED_BODY()
 
+public:
+	UPROPERTY(BlueprintReadWrite, Replicated, Category=GamePlay)
+	int32 DestroyTargetNum;
+
+	UPROPERTY(BlueprintReadWrite, Replicated, Category=GamePlay)
+	int32 KillNum;
+
+	UPROPERTY(BlueprintReadWrite, Replicated, Category=GamePlay)
+	int32 DeathNum;
+
+	UPROPERTY(BlueprintReadWrite, Replicated, Category=PlayerState)
+	FString PlayerName;
+
+private:
+	static int32 player_name_id;
+	
 protected:
 	
-	UPROPERTY(BlueprintGetter=IsReady, ReplicatedUsing=OnReadyChange, Category=PlayerState)
+	UPROPERTY(BlueprintGetter=IsReady, ReplicatedUsing=Rep_OnReadyChange, Category=PlayerState)
 	uint32 bIsReady : 1;
 
 public:
@@ -33,7 +49,7 @@ public:
 	void SetReady(const bool IsReady);
 
 	UFUNCTION()
-	void OnReadyChange();
+	void Rep_OnReadyChange();
 
 	UPROPERTY(BlueprintAssignable)
 	FReadyChangeDelegate ReadyChangeDelegate;

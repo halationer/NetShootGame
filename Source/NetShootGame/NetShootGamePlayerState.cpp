@@ -7,9 +7,18 @@
 #include "Net/UnrealNetwork.h"
 #include "Net/Core/PushModel/PushModel.h"
 
+int32 ANetShootGamePlayerState::player_name_id = 0;
+
 ANetShootGamePlayerState::ANetShootGamePlayerState()
 {
 	bIsReady = false;
+
+	DestroyTargetNum = 0;
+	KillNum = 0;
+	DeathNum = 0;
+
+	FString DefaultName = FString::Printf(TEXT("player_%d"), ANetShootGamePlayerState::player_name_id++);
+	PlayerName = DefaultName;
 }
 
 void ANetShootGamePlayerState::BeginPlay()
@@ -46,10 +55,15 @@ void ANetShootGamePlayerState::GetLifetimeReplicatedProps(TArray<FLifetimeProper
 	FDoRepLifetimeParams SharedParams;
 	SharedParams.bIsPushBased = true;
 	
-	DOREPLIFETIME_WITH_PARAMS_FAST(ANetShootGamePlayerState, bIsReady, SharedParams);
+	DOREPLIFETIME_WITH_PARAMS_FAST(ANetShootGamePlayerState, bIsReady, SharedParams)
+
+	DOREPLIFETIME(ANetShootGamePlayerState, DestroyTargetNum)
+	DOREPLIFETIME(ANetShootGamePlayerState, KillNum)
+	DOREPLIFETIME(ANetShootGamePlayerState, DeathNum)
+	DOREPLIFETIME(ANetShootGamePlayerState, PlayerName)
 }
 
-void ANetShootGamePlayerState::OnReadyChange()
+void ANetShootGamePlayerState::Rep_OnReadyChange()
 {
 	ReadyChangeDelegate.Broadcast();
 }

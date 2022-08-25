@@ -1,7 +1,12 @@
 // Copyright Epic Games, Inc. All Rights Reserved.
 
 #include "NetShootGameCharacter.h"
+
+#include "GrenadeActor.h"
+#include "GrenadeComponent.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
+#include "NetShootGamePlayerState.h"
+#include "NetShootGameState.h"
 #include "WeaponBaseActor.h"
 #include "WeaponBaseComponent.h"
 #include "Camera/CameraComponent.h"
@@ -9,7 +14,9 @@
 #include "Components/InputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
+#include "GameFramework/PlayerStart.h"
 #include "GameFramework/SpringArmComponent.h"
+#include "Kismet/GameplayStatics.h"
 #include "Net/UnrealNetwork.h"
 
 //////////////////////////////////////////////////////////////////////////
@@ -17,8 +24,9 @@
 
 ANetShootGameCharacter::ANetShootGameCharacter()
 {
-	// Set size for collision capsule
-	GetCapsuleComponent()->InitCapsuleSize(42.f, 96.0f);
+	// Set size for collision and transform for character
+	GetCapsuleComponent()->InitCapsuleSize(42.f, 90.0f);
+	GetMesh()->SetRelativeTransform(FTransform(FRotator(0.f, -90.f, 0.f), FVector(0.f, 0.f, -90.f)));
 
 	// set our turn rates for input
 	BaseTurnRate = 45.f;
@@ -29,6 +37,11 @@ ANetShootGameCharacter::ANetShootGameCharacter()
 	MaxWalkSpeedIsAiming = 200.f;
 	JumpZVelocityNotAiming = 400.f;
 	JumpZVelocityIsAiming = 200.f;
+
+	// game play
+	MaxHealth = 100.0f;
+	CurrentHealth = MaxHealth;
+	LowLifeRatio = 0.3f;
 
 	// Don't rotate when the controller rotates. Let that just affect the camera.
 	bUseControllerRotationPitch = false;
@@ -51,16 +64,26 @@ ANetShootGameCharacter::ANetShootGameCharacter()
 	FollowCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("FollowCamera"));
 	FollowCamera->SetupAttachment(CameraBoom, USpringArmComponent::SocketName); // Attach the camera to the end of the boom and let the boom adjust to match the controller orientation
 	FollowCamera->bUsePawnControlRotation = false; // Camera does not rotate relative to arm
-
+	
 	// Create an empty Weapon
 	EquippedWeapon = CreateDefaultSubobject<UWeaponBaseComponent>(TEXT("EquippedWeapon"));
 	EquippedWeapon->SetupAttachment(GetMesh());
 	EquippedWeapon->SetIsReplicated(true);
 	EquippedWeapon->SetActive(false);
+	EquippedWeapon->SetVisibility(false);
 	WeaponSocketName = TEXT("Weapon");
-	
-	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
-	// are set in the derived blueprint asset named MyCharacter (to avoid direct content references in C++)
+
+	// Fire
+	FrontSightPositionOnScreen = FVector2D(0.5, 0.47);
+	AutoAimStopDelay = 0.5f;
+
+	//Grenade
+	GrenadeSocketName = TEXT("Weapon");
+	CurrentGrenadeNum = 1;
+	MaxGrenadeNum = 3;
+
+	//Mesh
+	GetMesh()->SetSkeletalMesh(Cast<USkeletalMesh>(StaticLoadObject(USkeletalMesh::StaticClass(), nullptr, TEXT("SkeletalMesh'/Game/Characters/assests/Breathing_Idle.Breathing_Idle'"))));
 }
 
 void ANetShootGameCharacter::BeginPlay()
@@ -114,14 +137,76 @@ void ANetShootGameCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 	PlayerInputComponent->BindAction("Fire", IE_Released, this, &ANetShootGameCharacter::FireStop);
 }
 
-void ANetShootGameCharacter::Fire_Implementation()
+void ANetShootGameCharacter::Fire()
 {
-	bIsFire = true;
+	GetWorldTimerManager().ClearTimer(AutoAimStopTimer);
+	OnAimingStart();
+	Fire_Server();
 }
 
-void ANetShootGameCharacter::FireStop_Implementation()
+void ANetShootGameCharacter::FireStop()
 {
-	bIsFire = false;
+	GetWorldTimerManager().ClearTimer(AutoAimStopTimer);
+	GetWorldTimerManager().SetTimer(AutoAimStopTimer, this, &ANetShootGameCharacter::OnAimingEnd, AutoAimStopDelay);
+	FireStop_Server();
+}
+
+void ANetShootGameCharacter::Fire_Server_Implementation()
+{
+	if(bIsCarryingWeapon)
+	{
+		EquippedWeapon->FireStart();
+	}
+}
+
+void ANetShootGameCharacter::FireStop_Server_Implementation()
+{
+	if(bIsCarryingWeapon)
+	{
+		EquippedWeapon->FireStop();
+	}
+}
+
+void ANetShootGameCharacter::Tick(float DeltaSeconds)
+{
+	Super::Tick(DeltaSeconds);
+
+	// Update the weapon fix target direction, via pre ray cast
+	if(IsLocallyControlled() && IsPlayerControlled() && bIsCarryingWeapon)
+	{
+		UWorld* World = GetWorld();
+		if(World)
+		{
+			UGameViewportClient* Viewport = World->GetGameViewport();
+			if(Viewport)
+			{
+				FVector2D ViewPortSize;
+				Viewport->GetViewportSize(ViewPortSize);
+
+				FVector StartLocation, TargetDirection;
+				FVector2D ViewPortPose(ViewPortSize * FrontSightPositionOnScreen);
+				UGameplayStatics::DeprojectScreenToWorld(Cast<APlayerController>(GetController()), ViewPortPose, StartLocation, TargetDirection);
+
+				FHitResult Hit;
+				FVector EndLocation = StartLocation + EquippedWeapon->FireDistance * TargetDirection;
+				const FCollisionQueryParams QueryParams(TEXT("WeaponFire"), false, this);
+				bool bHitSuccess = World->LineTraceSingleByChannel(Hit, StartLocation, EndLocation, ECC_Pawn, QueryParams);
+
+				bHitPawn = bHitSuccess && Hit.Actor.IsValid() && Cast<APawn>(Hit.Actor) != nullptr;
+				
+				FVector TargetLocation = bHitSuccess ? Hit.Location : EndLocation;
+				EquippedWeapon->UpdateTargetLocation(TargetLocation);
+
+				// UE_LOG(LogTemp, Warning, TEXT("update location = %f, %f, %f"), TargetLocation.X, TargetLocation.Y, TargetLocation.Z);
+			}
+		}
+	}
+
+	// IK
+	float RightTraceDistance = IKFootTrace(RightFootSocket);
+	float LeftTraceDistance = IKFootTrace(LeftFootSocket);
+	IKRightFootOffset = FMath::FInterpTo(IKRightFootOffset, RightTraceDistance, DeltaSeconds, IKInterpolationSpeed);
+	IKLeftFootOffset = FMath::FInterpTo(IKLeftFootOffset, LeftTraceDistance, DeltaSeconds, IKInterpolationSpeed);
 }
 
 void ANetShootGameCharacter::OnResetVR()
@@ -137,7 +222,24 @@ void ANetShootGameCharacter::OnResetVR()
 
 void ANetShootGameCharacter::ThrowGrenadeStart_Implementation()
 {
-	bIsThrowingGrenade = true;
+	UWorld* World = GetWorld();
+	if(World && CurrentGrenadeNum > 0 && !bIsThrowingGrenade)
+	{
+		FTransform SpawnTransform = GetMesh()->GetSocketTransform(GrenadeSocketName);
+
+		// Disable pickup sense, disable physics, attach to socket before spawn 
+		AGrenadeActor* SpawnGrenade = Cast<AGrenadeActor>(UGameplayStatics::BeginDeferredActorSpawnFromClass(this, AGrenadeActor::StaticClass(), SpawnTransform));
+		SpawnGrenade->InitCannotSensed();
+		SpawnGrenade->GetGrenadeMesh()->SetSimulatePhysics(false);
+		SpawnGrenade->AttachToComponent(GetMesh(), FAttachmentTransformRules::KeepRelativeTransform, GrenadeSocketName);
+		SpawnGrenade->SetOwner(this);
+		UGameplayStatics::FinishSpawningActor(SpawnGrenade, FTransform::Identity);
+		
+		HandledGrenade = SpawnGrenade;
+		
+		bIsThrowingGrenade = true;
+	}
+
 }
 
 void ANetShootGameCharacter::ThrowGrenadeRelease_Implementation()
@@ -145,14 +247,53 @@ void ANetShootGameCharacter::ThrowGrenadeRelease_Implementation()
 	bIsThrowingGrenade = false;
 }
 
+void ANetShootGameCharacter::StartGrenade()
+{
+	if(HandledGrenade && IsValid(HandledGrenade))
+	{
+		UGrenadeComponent* Grenade = HandledGrenade->GetGrenadeMesh();
+		Grenade->StartExplode();
+		--CurrentGrenadeNum;
+	}
+}
+
+void ANetShootGameCharacter::ThrowOffGrenade()
+{
+	if(HandledGrenade && IsValid(HandledGrenade))
+	{
+		// detach from character hand
+		HandledGrenade->DetachFromActor(FDetachmentTransformRules::KeepWorldTransform);
+
+		FVector Velocity = GetMesh()->GetPhysicsLinearVelocityAtPoint(GetMesh()->GetSocketLocation(GrenadeSocketName), GrenadeSocketName);
+
+		// FVector FixedDirection = GetActorRotation().Vector();
+		// if(FixedDirection.Size() > 1.0f)
+		// {
+		// 	FixedDirection.Normalize();
+		// 	FVector FixedVelocity = FVector::DotProduct(Velocity ,FixedDirection) * FixedDirection;
+		// 	Velocity = FVector(FixedVelocity.X, FixedVelocity.Y, Velocity.Z);
+		// }
+		
+		UGrenadeComponent* Grenade = HandledGrenade->GetGrenadeMesh();
+		Grenade->SetSimulatePhysics(true);
+		// FVector ThrowImpulse = GetActorForwardVector();
+		// ThrowImpulse = ThrowImpulse + FVector(0.f, 0.f, 1.f);
+		FVector ThrowImpulse = Velocity;
+		ThrowImpulse = 100.0f * ThrowImpulse;
+		ThrowImpulse = ThrowImpulse + GetMovementComponent()->Velocity;
+		Grenade->AddImpulse(ThrowImpulse);
+	}
+}
+
 void ANetShootGameCharacter::TouchStarted(ETouchIndex::Type FingerIndex, FVector Location)
 {
-		Jump();
+	// Jump();
+	// GEngine->AddOnScreenDebugMessage(-1, 2.f, FColor::Cyan, FString::Printf(TEXT("TouchStart: %f, %f, %f"), Location.X, Location.Y, Location.Z));
 }
 
 void ANetShootGameCharacter::TouchStopped(ETouchIndex::Type FingerIndex, FVector Location)
 {
-		StopJumping();
+	// StopJumping();
 }
 
 void ANetShootGameCharacter::TurnAtRate(float Rate)
@@ -213,14 +354,20 @@ void ANetShootGameCharacter::MoveRight(float Value)
 
 void ANetShootGameCharacter::OnAimingStart()
 {
-	SetAiming_Server(true);
-	SetAimingCameraOffset_BP(true);
+	if(bIsCarryingWeapon && !bIsAiming)
+	{
+		SetAiming_Server(true);
+		SetAimingCameraOffset_BP(true);
+	}
 }
 
 void ANetShootGameCharacter::OnAimingEnd()
 {
-	SetAiming_Server(false);
-	SetAimingCameraOffset_BP(false);
+	if(bIsAiming)
+	{
+		SetAiming_Server(false);
+		SetAimingCameraOffset_BP(false);
+	}
 }
 
 void ANetShootGameCharacter::SetAiming_Server_Implementation(bool bNewAiming)
@@ -303,11 +450,17 @@ void ANetShootGameCharacter::SetSpeedUp_Multicast_Implementation(bool bNewSpeedU
 
 void ANetShootGameCharacter::PickUpSelectedWeapon()
 {
+	OnSpeedUpEnd();
 	PickUp_Server();
 }
 
 void ANetShootGameCharacter::ThrowCurrentWeapon()
-{
+{	
+	if(bIsAiming)
+	{
+		OnAimingEnd();
+	}
+	
 	Throw_Server();
 }
 
@@ -317,36 +470,50 @@ void ANetShootGameCharacter::PickUp_Server_Implementation()
 	{
 		AItemBaseActor* FirstItem = ItemsCanTouch.Top();
     
-		if(IsValid(FirstItem))
+		if(IsValid(FirstItem) && FirstItem->CanPickedUp())
 		{
 			ItemsCanTouch.Remove(FirstItem);
-        	
+
 			AWeaponBaseActor* FirstWeapon = Cast<AWeaponBaseActor>(FirstItem);
+			AGrenadeActor* FirstGrenade = Cast<AGrenadeActor>(FirstItem);
+			
 			if(FirstWeapon)
 			{
+				// if a weapon, pick up and equip it
 				UWeaponBaseComponent* WeaponComponent = FirstWeapon->WeaponMesh;
 				if(WeaponComponent)
 				{
 					if(bIsCarryingWeapon)
 					{
-						ThrowCurrentWeapon();
+						Throw_Server();
 					}
 					EquippedWeapon->SetWeaponAttribute(WeaponComponent->GetAttribute());
 					EquippedWeapon->SetActive(true);
+					EquippedWeapon->SetVisibility(true);
+					EquippedWeapon->SetWithTarget(true); // use target vector to correct direction
 					bIsCarryingWeapon = true;
 				}
+				FirstItem->Destroy();
 			}
-        	
-			FirstItem->Destroy();
+			else if(FirstGrenade)
+            {
+				// if a grenade, pick up and add numbers
+                if(CurrentGrenadeNum < MaxGrenadeNum)
+                {
+                	++CurrentGrenadeNum;
+                	
+                	FirstItem->Destroy();
+                }
+            }
+			
 		}
 	}
 }
 
 void ANetShootGameCharacter::Throw_Server_Implementation()
 {
-	
 	UWorld* const World = GetWorld();
-	if (World)
+	if (bIsCarryingWeapon && World)
 	{
 		FTransform SpawnTransform = GetMesh()->GetSocketTransform(WeaponSocketName);
 		AWeaponBaseActor* const SpawnWeapon = World->SpawnActor<AWeaponBaseActor>(AWeaponBaseActor::StaticClass(), SpawnTransform);
@@ -358,12 +525,128 @@ void ANetShootGameCharacter::Throw_Server_Implementation()
 		ThrowImpulse = 800.0f * ThrowImpulse;
 		ThrowImpulse = ThrowImpulse + GetMovementComponent()->Velocity;
 		SpawnWeapon->WeaponMesh->AddImpulse(ThrowImpulse);
+		
+		EquippedWeapon->ClearWeaponAttribute();
+		EquippedWeapon->SetActive(false);
+		EquippedWeapon->SetVisibility(false);
+		bIsCarryingWeapon = false;
 	}
-	
-	EquippedWeapon->ClearWeaponAttribute();
-	EquippedWeapon->SetActive(false);
-	bIsCarryingWeapon = false;
 }
+
+///////////////////////////////////////
+/// GamePlay
+float ANetShootGameCharacter::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent,
+	AController* EventInstigator, AActor* DamageCauser)
+{
+	const float ActuralDamage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	if(CurrentHealth > 0)
+	{
+		if(CurrentHealth <= ActuralDamage)
+        {
+        	CurrentHealth = .0f;
+        	ActorBeKilled(EventInstigator);
+        }
+        else
+        {
+        	CurrentHealth -= ActuralDamage;
+        	OnCurrentHealthChange_Rep();
+        }
+	}
+
+	return ActuralDamage;
+}
+
+void ANetShootGameCharacter::OnCurrentHealthChange_Rep()
+{
+	if(GetLifeRatio() <= LowLifeRatio)
+ 	{
+ 		LowLifeDelegate.Broadcast();
+ 	}
+}
+
+void ANetShootGameCharacter::ActorBeKilled(AController* KillerController)
+{
+	if(HasAuthority())
+	{
+		if(KillerController)
+        {
+			// killer point + 1 ( about player state, may be a delegate is better? )
+        	ANetShootGamePlayerState* KillerPlayerState = KillerController->GetPlayerState<ANetShootGamePlayerState>();
+        	if(KillerPlayerState) ++(KillerPlayerState->KillNum);
+        }
+    
+        AController* SelfController = GetController();
+        if(SelfController)
+        {
+        	// be killed actor death + 1
+        	ANetShootGamePlayerState* SelfPlayerState = SelfController->GetPlayerState<ANetShootGamePlayerState>();
+        	if(SelfPlayerState) ++(SelfPlayerState->DeathNum);
+        }
+
+		UE_LOG(LogTemp, Warning, TEXT("Character, before destroy."))
+        
+	    // Destroy();
+		DeathToBeRagDoll_MultiCast();
+		RemoveWidgetsOfCharacter();
+		GetWorldTimerManager().SetTimer(DestroyTimer, this, &ANetShootGameCharacter::DestroyFunc, 5.0f); 
+		DeathDelegate.Broadcast();
+		
+		UE_LOG(LogTemp, Warning, TEXT("Character, after destroy."))
+	}
+}
+
+void ANetShootGameCharacter::RespawnSelfClassCharacter_Implementation()
+{
+	UWorld* World = GetWorld();
+	if(World)
+	{
+		TArray<AActor*> PlayerStarts;
+		UGameplayStatics::GetAllActorsOfClass(World, APlayerStart::StaticClass(), PlayerStarts);
+		int32 RandomIndex = FMath::RandRange(0, PlayerStarts.Num()-1);
+		FTransform RespawnTransform = PlayerStarts[RandomIndex]->GetActorTransform();
+		APawn* RespawnPawn = World->SpawnActor<ANetShootGameCharacter>(this->StaticClass(), RespawnTransform);
+		GetController()->Possess(RespawnPawn);
+	}
+}
+
+void ANetShootGameCharacter::DeathToBeRagDoll_MultiCast_Implementation()
+{
+	GetMesh()->SetSimulatePhysics(true);
+	GetMesh()->SetCollisionProfileName(TEXT("Ragdoll"));
+	GetMesh()->bDisableClothSimulation = true;
+}
+
+/////// IK ///////
+
+float ANetShootGameCharacter::IKFootTrace(FName FootSocketName)
+{
+	UWorld* World = GetWorld();
+	if(World)
+	{
+		FVector SocketLocation = GetMesh()->GetSocketLocation(FootSocketName);
+		FVector ActorLocation = GetActorLocation();
+		float HalfLength = GetSimpleCollisionHalfHeight() * GetActorScale().Z; // Transform to World Length
+		float TraceLength = 50.0f + HalfLength;
+		FVector TraceStart(SocketLocation.X, SocketLocation.Y, ActorLocation.Z);
+		FVector TraceEnd(SocketLocation.X, SocketLocation.Y, ActorLocation.Z - TraceLength);
+
+		FHitResult HitResult;
+		const FCollisionQueryParams QueryParams(TEXT("IK"), false, this);
+		bool HitSuccess = World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
+
+		if(HitSuccess)
+		{
+			float Distance = ActorLocation.Z - HalfLength - HitResult.Location.Z;
+
+			// Transform to Local Distance
+			return Distance / GetActorScale().Z;
+		}
+	}
+
+	return 0;
+}
+
 
 ///// Properties Replicate Config /////
 
@@ -372,12 +655,13 @@ void ANetShootGameCharacter::GetLifetimeReplicatedProps(TArray<FLifetimeProperty
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
 
 	DOREPLIFETIME(ANetShootGameCharacter, bIsThrowingGrenade);
-	DOREPLIFETIME(ANetShootGameCharacter, bIsFire);
 	DOREPLIFETIME(ANetShootGameCharacter, bIsCarryingWeapon);
 	DOREPLIFETIME(ANetShootGameCharacter, bIsAiming);
 	
 	DOREPLIFETIME(ANetShootGameCharacter, LookUpAngle);
 	
-	DOREPLIFETIME(ANetShootGameCharacter, IKLeftFootOffset);
-	DOREPLIFETIME(ANetShootGameCharacter, IKRightFootOffset);
+	DOREPLIFETIME(ANetShootGameCharacter, MaxHealth);
+	DOREPLIFETIME(ANetShootGameCharacter, CurrentHealth);
+
+	DOREPLIFETIME(ANetShootGameCharacter, CurrentGrenadeNum);
 }

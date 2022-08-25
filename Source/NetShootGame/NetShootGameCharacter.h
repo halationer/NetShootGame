@@ -3,9 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "GrenadeActor.h"
 #include "ItemBaseActor.h"
 #include "GameFramework/Character.h"
 #include "NetShootGameCharacter.generated.h"
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FLowLifeDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FDeathDelegate);
 
 UCLASS(config=Game)
 class ANetShootGameCharacter : public ACharacter
@@ -39,10 +43,10 @@ public:
 
 
 	// Aiming
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable)
 	void OnAimingStart();
 	
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable)
 	void OnAimingEnd();
 	
 	UFUNCTION(Server, Reliable)
@@ -54,11 +58,12 @@ public:
 	UFUNCTION(BlueprintImplementableEvent)
 	void SetAimingCameraOffset_BP(bool bNewAiming);
 
+	
 	// Sprint (speed up)
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable)
 	void OnSpeedUpStart();
 
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable)
 	void OnSpeedUpEnd();
 
 	UFUNCTION(Server, Reliable)
@@ -69,10 +74,10 @@ public:
 
 
 	// PickUp
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable)
 	void PickUpSelectedWeapon();
 
-	UFUNCTION()
+	UFUNCTION(BlueprintCallable)
 	void ThrowCurrentWeapon();
 
 	UFUNCTION(Server, Reliable)
@@ -82,13 +87,47 @@ public:
 	void Throw_Server();
 
 	
-	// Animation State Control Properties
+	//Fire
+	UFUNCTION(BlueprintCallable)
+	void Fire();
 
+	UFUNCTION(BlueprintCallable)
+	void FireStop();
+	
+	UFUNCTION(Server, Reliable)
+	void Fire_Server();
+	
+	UFUNCTION(Server, Reliable)
+	void FireStop_Server();
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Fire")
+	FVector2D FrontSightPositionOnScreen;
+
+	UPROPERTY(Transient, BlueprintReadWrite)
+	uint32 bHitPawn : 1;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category="Fire")
+	float AutoAimStopDelay;
+	
+	FTimerHandle AutoAimStopTimer;
+
+	// Grenade
+	UFUNCTION(BlueprintCallable, Server, Reliable)
+	void ThrowGrenadeStart();
+
+	UFUNCTION(BlueprintCallable, Server, Reliable)
+	void ThrowGrenadeRelease();
+
+	UFUNCTION(BlueprintCallable)
+	void StartGrenade();
+
+	UFUNCTION(BlueprintCallable)
+	void ThrowOffGrenade();
+
+	
+	// Animation State Control Properties
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category="AnimState")
 	uint32 bIsThrowingGrenade : 1;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category="AnimState")
-	uint32 bIsFire : 1;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category="AnimState")
     uint32 bIsCarryingWeapon : 1;
@@ -98,12 +137,6 @@ public:
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category="AnimState")
 	float LookUpAngle;
-	
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category="AnimState")
-	float IKLeftFootOffset;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category="AnimState")
-	float IKRightFootOffset;
 
 	UPROPERTY(EditDefaultsOnly, Category="Movement")
 	float MaxWalkSpeedNotAiming;
@@ -120,23 +153,91 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category="Movement")
 	float JumpZVelocityIsAiming;
 
+	
 	// Pick Ups
 	UPROPERTY(EditDefaultsOnly, Category="Item")
 	FName WeaponSocketName;
+
+	UPROPERTY(EditDefaultsOnly, Category="Item")
+	FName GrenadeSocketName;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category="Item")
+	int32 CurrentGrenadeNum;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Item")
+	int32 MaxGrenadeNum;
 	
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="Item")
 	TArray<AItemBaseActor*> ItemsCanTouch;
 
+	UPROPERTY(Transient, BlueprintReadOnly, Category="Item")
+	AGrenadeActor* HandledGrenade;
+
 	FORCEINLINE void CloseToItem(AItemBaseActor* Item) { ItemsCanTouch.AddUnique(Item); }
 	FORCEINLINE void AwayFromItem(AItemBaseActor* Item) { ItemsCanTouch.Remove(Item); }
+
+	
+	// GamePlay
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Replicated, Category="Character")
+	float MaxHealth;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadWrite, ReplicatedUsing=OnCurrentHealthChange_Rep, Category="Character")
+	float CurrentHealth;
+
+	UPROPERTY(BlueprintAssignable)
+	FDeathDelegate DeathDelegate;
+	
+	FTimerHandle DestroyTimer;
+	void DestroyFunc() { RespawnSelfClassCharacter(); Destroy(); }
+	// the respawn function should expose to the blueprint, in order to override the spawn class
+	UFUNCTION(BlueprintNativeEvent)
+	void RespawnSelfClassCharacter();
+
+	UFUNCTION(NetMulticast, Reliable)
+	void DeathToBeRagDoll_MultiCast();
+	UFUNCTION(BlueprintImplementableEvent)
+	void RemoveWidgetsOfCharacter();
+	
+	UPROPERTY(BlueprintAssignable)
+	FLowLifeDelegate LowLifeDelegate;
+
+	UPROPERTY(EditDefaultsOnly, Category="Character")
+	float LowLifeRatio;
+
+	UFUNCTION(BlueprintCallable)
+	float GetLifeRatio() const { return CurrentHealth / MaxHealth; }
+	
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
+	void ActorBeKilled(AController* KillerController);
+
+	UFUNCTION()
+	void OnCurrentHealthChange_Rep();
+
+	
+	// IK
+	UPROPERTY(EditDefaultsOnly, Category="IK")
+	FName RightFootSocket = TEXT("IK_RightFoot");
+
+	UPROPERTY(EditDefaultsOnly, Category="IK")
+	FName LeftFootSocket = TEXT("IK_LeftFoot");
+
+	UPROPERTY(EditAnywhere, Category="IK")
+	float IKInterpolationSpeed;
+	
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="IK")
+	float IKLeftFootOffset;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category="IK")
+	float IKRightFootOffset;
+	
+private:
+
+	float IKFootTrace(FName FootSocketName);
 	
 protected:
 
-	UFUNCTION(Server, Reliable)
-	void Fire();
-	
-	UFUNCTION(Server, Reliable)
-	void FireStop();
+	virtual void Tick(float DeltaSeconds) override;
 	
 	/** Resets HMD orientation in VR. */
 	void OnResetVR();
@@ -159,7 +260,7 @@ protected:
 	 */
 	void LookUpAtRate(float Rate);
 
-	UFUNCTION(Server, Reliable)
+	UFUNCTION(BlueprintCallable, Server, Reliable)
 	void SetLookUpAngle(float Angle);
 
 	void LookUp(float Rate);
@@ -170,12 +271,6 @@ protected:
 
 	/** Handler for when a touch input stops. */
 	void TouchStopped(ETouchIndex::Type FingerIndex, FVector Location);
-	
-	UFUNCTION(Server, Reliable)
-	void ThrowGrenadeStart();
-
-	UFUNCTION(Server, Reliable)
-	void ThrowGrenadeRelease();
 	
 protected:
 	// APawn interface

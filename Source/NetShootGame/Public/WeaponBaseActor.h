@@ -11,6 +11,13 @@ class NETSHOOTGAME_API AWeaponBaseActor : public AItemBaseActor
 {
 	GENERATED_BODY()
 
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = AI, meta = (AllowPrivateAccess = "true"))
+	class UAIPerceptionStimuliSourceComponent* AISightSource;
+
+protected:
+
+	virtual void BeginPlay() override;
+	
 public:
 	
 	/** SkeletalMesh Of the Weapon */

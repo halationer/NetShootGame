@@ -14,9 +14,6 @@ ANetShootGameState::ANetShootGameState()
 
 void ANetShootGameState::UpdateAllPlayersReady_Implementation()
 {
-	// use push model
-	MARK_PROPERTY_DIRTY_FROM_NAME(ANetShootGameState, bAllPlayersReady, this)
-
 	// for each player, check it's ready state 
 	bool bTempAllReady = true;
 	TArray<APlayerState*> GamePlayerStates = PlayerArray;
@@ -32,6 +29,8 @@ void ANetShootGameState::UpdateAllPlayersReady_Implementation()
 	// if change then update, and change widget (play game button)
 	if(bAllPlayersReady != bTempAllReady)
 	{
+		// use push model
+		MARK_PROPERTY_DIRTY_FROM_NAME(ANetShootGameState, bAllPlayersReady, this)
 		bAllPlayersReady = bTempAllReady;
 		AllReadyDelegate.Broadcast();
 	}

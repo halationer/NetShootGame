@@ -29,6 +29,13 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category=GameMode)
 	void StartGame();
+
+	UFUNCTION(BlueprintCallable, Category=GameMode)
+	void EndGame();
+
+private:
+	void BindShowPlayerStateToAllPlayers();
+	void UnBindShowPlayerStateToAllPlayers();
 };
 
 

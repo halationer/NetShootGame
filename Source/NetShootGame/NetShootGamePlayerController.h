@@ -13,4 +13,14 @@ UCLASS()
 class NETSHOOTGAME_API ANetShootGamePlayerController : public APlayerController
 {
 	GENERATED_BODY()
+
+public:
+	UFUNCTION(BlueprintCallable, BlueprintImplementableEvent)
+	void ShowPlayerState();
+
+	UFUNCTION(Client, Reliable)
+	void BindShowPlayerState_Client();
+
+	UFUNCTION(Client, Reliable)
+	void UnBindShowPlayerState_Client();
 };

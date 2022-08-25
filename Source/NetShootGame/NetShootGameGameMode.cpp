@@ -3,14 +3,9 @@
 #include "NetShootGameGameMode.h"
 
 #include "EngineUtils.h"
-#include "NetShootGameCharacter.h"
 #include "NetShootGamePlayerController.h"
 #include "NetShootGamePlayerState.h"
-#include "NetShootGameSession.h"
 #include "NetShootGameState.h"
-#include "GameFramework/GameSession.h"
-#include "Net/OnlineEngineInterface.h"
-#include "UObject/ConstructorHelpers.h"
 
 ANetShootGameGameMode::ANetShootGameGameMode()
 {
@@ -112,5 +107,46 @@ void ANetShootGameGameMode::StartGame()
 	if(!IsAllPlayersReady())
 	{
 		UE_LOG(LogTemp, Warning, TEXT("Not all players Ready!"));
+	}
+	
+	// In-Game input binding
+	BindShowPlayerStateToAllPlayers();
+}
+
+void ANetShootGameGameMode::EndGame()
+{
+	// In-Game input binding
+	UnBindShowPlayerStateToAllPlayers();
+}
+
+void ANetShootGameGameMode::BindShowPlayerStateToAllPlayers()
+{
+	UWorld* World = GetWorld();
+	if(World)
+	{
+		for(FConstPlayerControllerIterator PCIterator = World->GetPlayerControllerIterator(); PCIterator; ++PCIterator)
+		{
+			ANetShootGamePlayerController* NetShootPC = Cast<ANetShootGamePlayerController>(PCIterator->Get());
+			if(NetShootPC)
+			{
+				NetShootPC->BindShowPlayerState_Client();
+			}
+		}
+	}
+}
+
+void ANetShootGameGameMode::UnBindShowPlayerStateToAllPlayers()
+{
+	UWorld* World = GetWorld();
+	if(World)
+	{
+		for(FConstPlayerControllerIterator PCIterator = World->GetPlayerControllerIterator(); PCIterator; ++PCIterator)
+		{
+			ANetShootGamePlayerController* NetShootPC = Cast<ANetShootGamePlayerController>(PCIterator->Get());
+			if(NetShootPC)
+			{
+				NetShootPC->UnBindShowPlayerState_Client();
+			}
+		}
 	}
 }

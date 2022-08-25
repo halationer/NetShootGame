@@ -18,7 +18,8 @@ public class NetShootGame : ModuleRules
 				"HeadMountedDisplay",
 				
 				// Use push model to speed up rep
-				"NetCore"
+				"NetCore",
+				"AIModule"
 			}
 		);
 

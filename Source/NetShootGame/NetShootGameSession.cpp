@@ -8,7 +8,7 @@
 
 ANetShootGameSession::ANetShootGameSession()
 {
-	RoomName = TEXT("Halation");
+	RoomName = TEXT("DefualtRoom");
 }
 
 FString ANetShootGameSession::ApproveLogin(const FString& Options)
