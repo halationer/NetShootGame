@@ -582,6 +582,8 @@ void ANetShootGameCharacter::ActorBeKilled(AController* KillerController)
         	// be killed actor death + 1
         	ANetShootGamePlayerState* SelfPlayerState = SelfController->GetPlayerState<ANetShootGamePlayerState>();
         	if(SelfPlayerState) ++(SelfPlayerState->DeathNum);
+        	FireStop_Server();
+        	Throw_Server();
         }
 
 		UE_LOG(LogTemp, Warning, TEXT("Character, before destroy."))
