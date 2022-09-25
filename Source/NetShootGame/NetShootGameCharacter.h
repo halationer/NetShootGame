@@ -27,6 +27,10 @@ class ANetShootGameCharacter : public ACharacter
 	/** Weapon */
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Item, meta = (AllowPrivateAccess = "true"))
 	class UWeaponBaseComponent* EquippedWeapon;
+
+	/** Backpack */
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = Backpack, meta = (AllowPrivateAccess = "ture"))
+	class UBackpackComponent* Backpack;
 	
 public:
 	ANetShootGameCharacter();
@@ -85,6 +89,19 @@ public:
 
 	UFUNCTION(Server, Reliable)
 	void Throw_Server();
+
+	// Backpack Pick Up
+	UFUNCTION(BlueprintCallable)
+	void BackpackPickUp();
+
+	UFUNCTION(BlueprintCallable)
+	void BackpackThrow();
+	
+	UFUNCTION(Server, Reliable)
+	void BackpackPickUp_Server();
+	
+	UFUNCTION(Server, Reliable)
+	void BackpackThrow_Server();
 
 	
 	//Fire
@@ -160,6 +177,9 @@ public:
 
 	UPROPERTY(EditDefaultsOnly, Category="Item")
 	FName GrenadeSocketName;
+
+	UPROPERTY(EditDefaultsOnly, Category="Item")
+	FName BackpackSocketName;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Replicated, Category="Item")
 	int32 CurrentGrenadeNum;

@@ -2,6 +2,7 @@
 
 #include "NetShootGameCharacter.h"
 
+#include "BackpackComponent.h"
 #include "GrenadeActor.h"
 #include "GrenadeComponent.h"
 #include "HeadMountedDisplayFunctionLibrary.h"
@@ -73,6 +74,12 @@ ANetShootGameCharacter::ANetShootGameCharacter()
 	EquippedWeapon->SetVisibility(false);
 	WeaponSocketName = TEXT("Weapon");
 
+	// Create an empty bag
+	Backpack = CreateDefaultSubobject<UBackpackComponent>(TEXT("Backpack"));
+	Backpack->SetSkeletalMesh(Cast<USkeletalMesh>(StaticLoadObject(USkeletalMesh::StaticClass(), nullptr, TEXT("SkeletalMesh'/Game/AItems/backpack.backpack'"))));
+	Backpack->SetupAttachment(GetMesh());
+	BackpackSocketName = TEXT("Backpack");
+	
 	// Fire
 	FrontSightPositionOnScreen = FVector2D(0.5, 0.47);
 	AutoAimStopDelay = 0.5f;
@@ -90,6 +97,7 @@ void ANetShootGameCharacter::BeginPlay()
 {
 	Super::BeginPlay();
 	EquippedWeapon->AttachToComponent(GetMesh(), FAttachmentTransformRules(EAttachmentRule::KeepRelative, true), WeaponSocketName);
+	Backpack->AttachToComponent(GetMesh(), FAttachmentTransformRules::KeepRelativeTransform, BackpackSocketName);
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -130,6 +138,9 @@ void ANetShootGameCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 	PlayerInputComponent->BindAction("PickUpWeapon", IE_Pressed, this, &ANetShootGameCharacter::PickUpSelectedWeapon);
 	PlayerInputComponent->BindAction("ThrowWeapon", IE_Pressed, this, &ANetShootGameCharacter::ThrowCurrentWeapon);
 
+	PlayerInputComponent->BindAction("BackpackPickUp", IE_Pressed, this, &ANetShootGameCharacter::BackpackPickUp);
+	PlayerInputComponent->BindAction("BackpackThrow", IE_Pressed, this, &ANetShootGameCharacter::BackpackThrow);
+	
 	PlayerInputComponent->BindAction("ThrowGrenade", IE_Pressed, this, &ANetShootGameCharacter::ThrowGrenadeStart);
 	PlayerInputComponent->BindAction("ThrowGrenade", IE_Released, this, &ANetShootGameCharacter::ThrowGrenadeRelease);
 
@@ -530,6 +541,41 @@ void ANetShootGameCharacter::Throw_Server_Implementation()
 		EquippedWeapon->SetActive(false);
 		EquippedWeapon->SetVisibility(false);
 		bIsCarryingWeapon = false;
+	}
+}
+
+void ANetShootGameCharacter::BackpackPickUp()
+{
+	BackpackPickUp_Server();
+}
+
+void ANetShootGameCharacter::BackpackThrow()
+{
+	BackpackThrow_Server();
+}
+
+void ANetShootGameCharacter::BackpackPickUp_Server_Implementation()
+{
+	if(ItemsCanTouch.Num() > 0)
+	{
+		AItemBaseActor* FirstItem = ItemsCanTouch.Top();
+    
+		if(IsValid(FirstItem) && FirstItem->CanPickedUp())
+		{
+			if(Backpack->AddToBag(FirstItem))
+			{
+				ItemsCanTouch.Remove(FirstItem);
+				FirstItem->Destroy();
+			}
+		}
+	}
+}
+
+void ANetShootGameCharacter::BackpackThrow_Server_Implementation()
+{
+	if(Backpack->Num() > 0)
+	{
+		Backpack->RemoveFromBag(0);
 	}
 }
 

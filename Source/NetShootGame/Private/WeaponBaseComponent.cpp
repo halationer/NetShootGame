@@ -31,7 +31,7 @@ UWeaponBaseComponent::UWeaponBaseComponent()
 	FireLight->SetupAttachment(this, FireSocketName);
 }
 
-void UWeaponBaseComponent::SetWeaponAttribute_Implementation(const FWeaponAttribute NewAttribute)
+void UWeaponBaseComponent::SetWeaponAttribute_Implementation(const FWeaponAttribute& NewAttribute)
 {
 	WeaponAttribute = NewAttribute;
 	MARK_PROPERTY_DIRTY_FROM_NAME(UWeaponBaseComponent, WeaponAttribute, this);

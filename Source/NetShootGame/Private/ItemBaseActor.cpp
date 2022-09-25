@@ -11,7 +11,7 @@
 // Sets default values
 AItemBaseActor::AItemBaseActor()
 {
-	this->SetReplicates(true);
+	bReplicates = true;
 	this->SetReplicatingMovement(true);
 
 	PickUpSensor = CreateDefaultSubobject<USphereComponent>(TEXT("PickUpSensor"));

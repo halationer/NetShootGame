@@ -3,11 +3,12 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "BackpackItemInterface.h"
 #include "GameFramework/Actor.h"
 #include "ItemBaseActor.generated.h"
 
 UCLASS(Abstract)
-class NETSHOOTGAME_API AItemBaseActor : public AActor
+class NETSHOOTGAME_API AItemBaseActor : public AActor, public IBackpackItemInterface
 {
 	GENERATED_BODY()
 	

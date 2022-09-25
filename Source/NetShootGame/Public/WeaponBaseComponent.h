@@ -56,7 +56,7 @@ public:
 	void ClearWeaponAttribute() { SetWeaponAttribute(FWeaponAttribute()); }
 	
 	UFUNCTION(BlueprintCallable, Server, Reliable)
-	void SetWeaponAttribute(const FWeaponAttribute NewAttribute);
+	void SetWeaponAttribute(const FWeaponAttribute& NewAttribute);
 	
 	UFUNCTION(BlueprintCallable)
 	void OnAttributeChange();

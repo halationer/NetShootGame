@@ -9,11 +9,12 @@
 UCLASS()
 class NETSHOOTGAME_API AWeaponBaseActor : public AItemBaseActor
 {
+private:
 	GENERATED_BODY()
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = AI, meta = (AllowPrivateAccess = "true"))
 	class UAIPerceptionStimuliSourceComponent* AISightSource;
-
+	
 protected:
 
 	virtual void BeginPlay() override;
@@ -26,5 +27,12 @@ public:
 	
 	// Sets default values for this actor's properties
 	AWeaponBaseActor();
+
+
+	/////////////////////// IBackpackItemInterface //////////////////////////
+
+	virtual bool ActorEqualToInfo(AActor* Actor, FBackpackItemInfo& Info) override;
+    virtual FBackpackItemInfo GenerateBackpackItemInfo_Implementation(AActor* Actor) override;
+    virtual void InitItemBeforeSpawn_Implementation(FBackpackItemInfo& Info, AActor* Actor) override;
 
 };
