@@ -10,6 +10,7 @@
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FLowLifeDelegate);
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FDeathDelegate);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FSwitchBackpackDelegate);
 
 UCLASS(config=Game)
 class ANetShootGameCharacter : public ACharacter
@@ -102,6 +103,13 @@ public:
 	
 	UFUNCTION(Server, Reliable)
 	void BackpackThrow_Server();
+
+	//Tell UI to open or close the Backpack Layers
+	UPROPERTY(BlueprintAssignable)
+	FSwitchBackpackDelegate SwitchBackpackDelegate;
+	
+	UFUNCTION(BlueprintCallable)
+	void BackpackSwitch() { SwitchBackpackDelegate.Broadcast(); }
 
 	
 	//Fire

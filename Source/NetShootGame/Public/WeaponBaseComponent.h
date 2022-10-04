@@ -23,6 +23,9 @@ struct FWeaponAttribute : public FTableRowBase
 	
 	UPROPERTY(BlueprintReadWrite)
 	UStaticMesh* BulletMesh;
+
+	UPROPERTY(BlueprintReadWrite)
+	UTexture2D* DisplayImage;
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FFireOnceDelegate);

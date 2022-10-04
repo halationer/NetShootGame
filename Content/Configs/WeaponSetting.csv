@@ -1,5 +1,5 @@
-,Id,Name,SkeletonMesh,BulletMesh
-AK47,1,AK47,SkeletalMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/Ka47/SK_KA47.SK_KA47',StaticMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/Ammunition/SM_Shell_556x45.SM_Shell_556x45'
-AR4,2,AR4,SkeletalMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/AR4/SK_AR4.SK_AR4',StaticMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/Ammunition/SM_Shell_556x45.SM_Shell_556x45'
-KA74U,3,KA74U,SkeletalMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/KA74U/SK_KA74U_Y.SK_KA74U_Y',StaticMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/Ammunition/SM_Shell_762x51.SM_Shell_762x51'
-FPGun,4,FPGun,SkeletalMesh'/Game/AWeapons/Models/SK_FPGun.SK_FPGun',StaticMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/Ammunition/SM_Shell_762x51.SM_Shell_762x51'
+,Id,Name,SkeletonMesh,BulletMesh,DisplayImage
+AK47,1,AK47,SkeletalMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/Ka47/SK_KA47.SK_KA47',StaticMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/Ammunition/SM_Shell_556x45.SM_Shell_556x45',Texture2D'/Game/A3DCapture/captures/0.0'
+AR4,2,AR4,SkeletalMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/AR4/SK_AR4.SK_AR4',StaticMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/Ammunition/SM_Shell_556x45.SM_Shell_556x45',Texture2D'/Game/A3DCapture/captures/1.1'
+KA74U,3,KA74U,SkeletalMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/KA74U/SK_KA74U_Y.SK_KA74U_Y',StaticMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/Ammunition/SM_Shell_762x51.SM_Shell_762x51',Texture2D'/Game/A3DCapture/captures/2.2'
+FPGun,4,FPGun,SkeletalMesh'/Game/AWeapons/Models/SK_FPGun.SK_FPGun',StaticMesh'/Game/FPS_Weapon_Bundle/Weapons/Meshes/Ammunition/SM_Shell_762x51.SM_Shell_762x51',Texture2D'/Game/A3DCapture/captures/3.3'

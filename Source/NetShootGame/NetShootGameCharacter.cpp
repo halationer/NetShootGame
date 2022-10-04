@@ -146,6 +146,8 @@ void ANetShootGameCharacter::SetupPlayerInputComponent(class UInputComponent* Pl
 
 	PlayerInputComponent->BindAction("Fire", IE_Pressed, this, &ANetShootGameCharacter::Fire);
 	PlayerInputComponent->BindAction("Fire", IE_Released, this, &ANetShootGameCharacter::FireStop);
+
+	PlayerInputComponent->BindAction("SwitchBackpack", IE_Pressed, this, &ANetShootGameCharacter::BackpackSwitch);
 }
 
 void ANetShootGameCharacter::Fire()

@@ -35,6 +35,13 @@ struct FBackpackItemInfo
 	{
 		return ItemType == BackpackItemInfo.ItemType && !bIsUnique;
 	}
+
+	// Attribute for UI Display
+	UPROPERTY(BlueprintReadWrite, Category="UI Display")
+	UTexture2D* ItemImage;
+
+	UPROPERTY(BlueprintReadWrite, Category="UI Display")
+	TArray<FString> ItemDetailLists;
 };
 
 // This class does not need to be modified.

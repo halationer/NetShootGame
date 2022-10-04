@@ -53,6 +53,7 @@ FBackpackItemInfo AWeaponBaseActor::GenerateBackpackItemInfo_Implementation(AAct
 	Info.bIsUnique = true;
 	Info.ItemType = FName(WeaponMesh->GetAttribute().Name);
 	Info.ItemClass = AWeaponBaseActor::StaticClass();
+	Info.ItemImage = WeaponMesh->GetAttribute().DisplayImage;
 
 	FMemoryWriter Writer(Info.ItemStatus, true);
 	FObjectAndNameAsStringProxyArchive Ar(Writer, false);
